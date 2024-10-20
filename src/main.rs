@@ -48,11 +48,15 @@ const RUST:usize = 1;
 const RUST2:usize = 2;
 const C:usize = 3;
 const CPP:usize = 4;
+const CPP2:usize = 5;
+const PYTHON:usize = 6;
+const C2:usize = 6;
+
 
 fn main()  -> std::io::Result<()> {
     let mut cost: [[u16; 1000]; 1000] = [[0; 1000]; 1000];
-    let demand_size: usize = 30;
-    let supply_size: usize = 40;
+    let demand_size: usize = 300;
+    let supply_size: usize = 300;
     let max_size: usize = cmp::max(demand_size, supply_size);
     let mut cost_vec: [Vec<u32>; 10] = [const { Vec::new() }; 10];
     let mut time_vec: [Vec<u64>; 10] = [const { Vec::new() }; 10];
@@ -123,7 +127,41 @@ fn main()  -> std::io::Result<()> {
         println!("CPP ret ({}) {:?}", c_cost, c_ret);
         cost_vec[CPP].push(c_cost);
 
+        // ---------------- C++ ------------------------
+        // https://github.com/phoemur/hungarian_algorithm/blob/master/hungarian.cpp
+        write_input("input.txt", supply_size, demand_size, &cost);
+        match remove_file("output.txt") { Ok(_) => {} Err(_) => {} };
+        start = Instant::now();
+        Command::new("sh")
+                .arg("-c").arg("./munkres3").output().expect("failed to execute process");
+        time_vec[CPP2].push(start.elapsed().as_secs());
+        let (c_cost2, c_ret) = read_square_matrix("output.txt", &cost);
+        println!("CPP2 ret ({}) {:?}", c_cost2, c_ret);
+        cost_vec[CPP2].push(c_cost2);
 
+        // ---------------- Python
+        // https://software.clapper.org/munkres/
+        // python3 -m pip install munkres
+        match remove_file("output.txt") { Ok(_) => {} Err(_) => {} };
+        generate_python("munk.py", supply_size, demand_size, &cost);
+        start = Instant::now();
+        Command::new("sh")
+                .arg("-c").arg("python3 munk.py").output().expect("failed to execute process");
+        time_vec[PYTHON].push(start.elapsed().as_secs());
+        let (python_cost, c_ret) = read_python_row_col("output.txt", &cost);
+        println!("Python ret ({}) {:?}", python_cost, c_ret);
+        cost_vec[PYTHON].push(python_cost);
+
+        // ---------- C ----
+        // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
+        // hangs when non-balanced
+        /*write_input("input.txt", supply_size, demand_size, &cost);
+        match remove_file("output.txt") { Ok(_) => {} Err(_) => {} };
+        start = Instant::now();
+        Command::new("sh")
+                .arg("-c").arg("./munkres4").output().expect("failed to execute process");
+        time_vec[C2].push(start.elapsed().as_secs());
+        */
         // --------------- COMPARING RESULTS
         if glpk_cost != munk_cost {
             println!("Cost does not equal, GLPK: {}, Munkres: {}", glpk_cost, munk_cost);
@@ -132,7 +170,13 @@ fn main()  -> std::io::Result<()> {
             println!("Cost does not equal, GLPK: {}, Munkres2: {}", glpk_cost, munk2_cost);
         }
         if glpk_cost != c_cost as u32 {
-            println!("Cost does not equal, GLPK: {}, C: {}", glpk_cost, c_cost);
+            println!("Cost does not equal, GLPK: {}, C++: {}", glpk_cost, c_cost);
+        }
+        if glpk_cost != c_cost2 as u32 {
+            println!("Cost does not equal, GLPK: {}, C++2: {}", glpk_cost, c_cost2);
+        }
+        if glpk_cost != python_cost as u32 {
+            println!("Cost does not equal, GLPK: {}, Python: {}", glpk_cost, python_cost);
         }
         println!("ITER: {}", iter);
     }
@@ -140,8 +184,32 @@ fn main()  -> std::io::Result<()> {
     println!("Average duration GLPK: {}", average(time_vec[GLPK].as_slice()));
     println!("Average duration Munkres: {}", average(time_vec[RUST].as_slice()));
     println!("Average duration Munkres2: {}", average(time_vec[RUST2].as_slice()));
-    println!("Average duration C: {}", average(time_vec[C].as_slice()));
+    println!("Average duration CPP: {}", average(time_vec[CPP].as_slice()));
+    println!("Average duration CPP2: {}", average(time_vec[CPP2].as_slice()));
+    println!("Average duration Python: {}", average(time_vec[PYTHON].as_slice()));
     Ok(())
+}
+
+fn generate_python(filename: &str, width: usize, length: usize, cost: &[[u16; 1000]; 1000]) {
+    let mut writer = File::create(filename).expect("creation failed");
+    write!(&mut writer, "from munkres import Munkres\nmatrix = [").unwrap();
+    for s in 0 .. width {
+        write!(&mut writer, "[").unwrap();
+        for d in 0 .. length {
+            write!(&mut writer, "{}", cost[s][d]).unwrap();
+            if d < length -1 {
+                write!(&mut writer, ",").unwrap();
+            }
+        }
+        write!(&mut writer, "]").unwrap();
+        if s < width - 1 {
+            write!(&mut writer, ",").unwrap();
+        }
+        write!(&mut writer, "\n").unwrap();
+    }
+    write!(&mut writer, "]\nm = Munkres()\nindexes = m.compute(matrix)\nf = open(\"output.txt\", \"w\")\n").unwrap();
+    write!(&mut writer, "for row, column in indexes:\n\tf.write (\"%d %d\\n\" % (row, column))\n").unwrap(); 
+    write!(&mut writer, "f.close()\n").unwrap(); 
 }
 
 fn sum_up_cost(vect: &Vec<i16>, cost: &[[u16; 1000]; 1000]) -> u32 {
@@ -154,6 +222,57 @@ fn sum_up_cost(vect: &Vec<i16>, cost: &[[u16; 1000]; 1000]) -> u32 {
     }
     return sum;
 }
+
+fn read_square_matrix(filename: &str, cost: &[[u16; 1000]; 1000]) -> (u32, Vec<i16>) {
+    let mut ret: Vec<i16> = vec![];
+    let mut sum: u32 = 0;
+    let f = BufReader::new(File::open(filename).unwrap());
+
+    for (i, line) in f.lines().enumerate() {
+        for (j, number) in line.unwrap().split(char::is_whitespace).enumerate() {
+            let flag = match number.trim().parse::<i8>() {
+                Ok(T) => T,
+                Err(E) => -1,
+            };
+            if flag == -1 { // the first whitespace
+                continue;
+            }
+            if flag == 1 {
+                let idx = j -2; // two whitespaces to be skipped
+                ret.push(j as i16);
+                if cost[i][idx] < BIG_VALUE {
+                    sum += cost[i][idx] as u32;
+                }
+                // we could break here from the inner loop
+            }
+        }
+    }
+    return (sum, ret);
+}
+
+fn read_python_row_col(filename: &str, cost: &[[u16; 1000]; 1000]) -> (u32, Vec<i16>) {
+    let mut ret: Vec<i16> = vec![];
+    let mut sum: u32 = 0;
+    let mut row: usize = 0;
+    let mut col: usize = 0;
+    let f = BufReader::new(File::open(filename).unwrap());
+
+    for (i, line) in f.lines().enumerate() {
+        for (j, number) in line.unwrap().split(char::is_whitespace).enumerate() {
+            if j == 0 {
+                row = number.trim().parse::<usize>().unwrap();
+            } else {
+                col = number.trim().parse::<usize>().unwrap();
+                ret.push(col as i16);
+                if cost[row][col] < BIG_VALUE {
+                    sum += cost[row][col] as u32;
+                }
+            }
+        }
+    }
+    return (sum, ret);
+}
+
 
 fn read_results_binary(filename: &str, size: usize, cost: &[[u16; 1000]; 1000]) -> (u32, Vec<i16>) {
     let file = File::open(filename).unwrap();

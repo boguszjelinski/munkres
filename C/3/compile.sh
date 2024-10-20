@@ -1,0 +1,1 @@
+g++ -std=c++11  hungarian.cpp -o hungarian
