@@ -10,7 +10,7 @@
 int size1=0;
 int size2=0;
 
-#define SIZE 1000
+#define SIZE 2001
 #define verbose (1)
 
 int Array[SIZE][SIZE];
@@ -52,7 +52,7 @@ for (i=0;i<size1;++i)
     Result[i][j]=false;
 
 // Begin subtract column minima in order to start with lots of zeroes 12
-printf("Using heuristic\n");
+
 for (l=0;l<n;l++)
 {
   s=Array[0][l];
@@ -87,13 +87,9 @@ for (k=0;k<m;k++)
     {
       col_mate[k]=l;
       row_mate[l]=k;
-      if (verbose)
-        printf("matching col %d==row %d\n",l,k);
       goto row_done;
     }
   col_mate[k]= -1;
-  if (verbose)
-    printf("node %d: unmatched row %d\n",t,k);
   unchosen_row[t++]=k;
 row_done:
   ;
@@ -106,8 +102,6 @@ if (t==0)
 unmatched=t;
 while (1)
 {
-  if (verbose)
-    printf("Matched %d rows.\n",m-t);
   q=0;
   while (1)
   {
@@ -130,9 +124,6 @@ while (1)
                   goto breakthru;
                 slack[l]=0;
                 parent_row[l]=k;
-                if (verbose)
-                  printf("node %d: row %d==col %d--row %d\n",
-                    t,row_mate[l],l,k);
                 unchosen_row[t++]=row_mate[l];
               }
               else
@@ -189,15 +180,11 @@ while (1)
   }
 breakthru:
   // Begin update the matching 20
-  if (verbose)
-    printf("Breakthrough at node %d of %d!\n",q,t);
   while (1)
   {
     j=col_mate[k];
     col_mate[k]=l;
     row_mate[l]=k;
-    if (verbose)
-      printf("rematching col %d==row %d\n",l,k);
     if (j<0)
       break;
     k=parent_row[j];
@@ -262,7 +249,7 @@ for (i=0;i<m;i++)
   cost+=row_dec[i];
 for (i=0;i<n;i++)
   cost-=col_inc[i];
-printf("Cost is %d\n",cost);
+//printf("Cost is %d\n",cost);
 }
 
 main()
@@ -290,8 +277,10 @@ fclose(myFile);
 
 hungarian();
 
+FILE *outFile = fopen("output.txt", "w");
 for (y=0;y<size1;++y)
   for (x=0;x<size2;++x)
     if (Result[y][x])
-      printf("%d and %d are connected in the assignment\n",y,x);
+      fprintf(outFile, "%d\n", x);
+fclose(outFile);
 }
