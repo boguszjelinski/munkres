@@ -54,17 +54,19 @@ const CPP2:usize = 5;
 const PYTHON:usize = 6;
 const C2:usize = 7;
 const CPP3:usize = 8;
+const PYTHON2:usize = 9;
+const CPP4:usize = 10;
 
 const DSIZE: usize = 2001;
 const SSIZE: usize = 2001;
 
 fn main()  -> std::io::Result<()> {
     let mut cost: [[u16; DSIZE]; SSIZE] = [[0; DSIZE]; SSIZE];
-    let demand_size: usize = 2000;
-    let supply_size: usize = 2000;
+    let demand_size: usize = 1000;
+    let supply_size: usize = 1000;
     let max_size: usize = cmp::max(demand_size, supply_size);
-    let mut cost_vec: [Vec<u32>; 10] = [const { Vec::new() }; 10];
-    let mut time_vec: [Vec<u128>; 10] = [const { Vec::new() }; 10];
+    let mut cost_vec: [Vec<u32>; 15] = [const { Vec::new() }; 15];
+    let mut time_vec: [Vec<u128>; 15] = [const { Vec::new() }; 15];
 
     init_cost(&mut cost);
 
@@ -172,6 +174,20 @@ fn main()  -> std::io::Result<()> {
         //println!("Python ret ({}) {:?}", python_cost, c_ret);
         cost_vec[PYTHON].push(python_cost);        
       */  
+
+       // ---------------- Python LAPJV
+        // https://github.com/src-d/lapjv
+        // python3 -m pip install lapjv
+        match remove_file("output.txt") { Ok(_) => {} Err(_) => {} };
+        generate_python2("munk2.py", supply_size, demand_size, &cost);
+        start = Instant::now();
+        Command::new("sh")
+                .arg("-c").arg("python3 munk2.py").output().expect("failed to execute process");
+        time_vec[PYTHON2].push(start.elapsed().as_millis());
+        let (python2_cost, c_ret) = read_results_index("output.txt", &cost);
+        //println!("Python ret ({}) {:?}", python_cost, c_ret);
+        cost_vec[PYTHON2].push(python2_cost);        
+
         // ---------- C ----
         // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
         // hangs when non-balanced
@@ -199,7 +215,15 @@ fn main()  -> std::io::Result<()> {
         cost_vec[CPP3].push(lap_cost);
         */
 
-        // https://github.com/jamespayor/weighted-bipartite-perfect-matching
+        // https://github.com/aaron-michaux/munkres-algorithm.git
+        write_input("input.txt", supply_size, demand_size, &cost);
+        match remove_file("output.txt") { Ok(_) => {} Err(_) => {} };
+        start = Instant::now();
+        Command::new("sh").arg("-c").arg("./munkres6").output().expect("failed to execute process");
+        time_vec[CPP4].push(start.elapsed().as_millis());
+        let (cpp4_cost, c_ret) = read_results_index("output.txt", &cost);
+        cost_vec[CPP4].push(cpp4_cost);
+
 
         // --------------- COMPARING RESULTS
         /*
@@ -222,7 +246,7 @@ fn main()  -> std::io::Result<()> {
             println!("Cost does not equal, GLPK: {}, LAP: {}", glpk_cost, lap_cost);
         }
         */
-        if (munk_cost != c_cost || munk_cost != c2_cost) {
+        if (munk_cost != c_cost || munk_cost != c2_cost || munk_cost != python2_cost || munk_cost != cpp4_cost) {
              println!("Costs do not equal: rust: {} cpp: {} c2: {}", munk_cost, c_cost, c2_cost);
         }
         println!("ITER: {}", iter);
@@ -235,7 +259,9 @@ fn main()  -> std::io::Result<()> {
     //println!("CPP2: Avg: {}, Min: {}, Max: {}", average(time_vec[CPP2].as_slice()), time_vec[CPP2].iter().min().unwrap(), time_vec[CPP2].iter().max().unwrap());
     //println!("Python: Avg: {}, Min: {}, Max: {}", average(time_vec[PYTHON].as_slice()), time_vec[PYTHON].iter().min().unwrap(), time_vec[PYTHON].iter().max().unwrap());
     println!("C2: Avg: {}, Min: {}, Max: {}", average(time_vec[C2].as_slice()), time_vec[C2].iter().min().unwrap(), time_vec[C2].iter().max().unwrap());
+    println!("Python2: Avg: {}, Min: {}, Max: {}", average(time_vec[PYTHON2].as_slice()), time_vec[PYTHON2].iter().min().unwrap(), time_vec[PYTHON2].iter().max().unwrap());
     //println!("LAP: Avg: {}, Min: {}, Max: {}", average(time_vec[CPP3].as_slice()), time_vec[CPP3].iter().min().unwrap(), time_vec[CPP3].iter().max().unwrap());
+    println!("CPP4: Avg: {}, Min: {}, Max: {}", average(time_vec[CPP4].as_slice()), time_vec[CPP4].iter().min().unwrap(), time_vec[CPP4].iter().max().unwrap());
     Ok(())
 }
 
@@ -276,7 +302,7 @@ fn generate_python(filename: &str, width: usize, length: usize, cost: &[[u16; DS
 
 fn generate_python2(filename: &str, width: usize, length: usize, cost: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
-    write!(&mut writer, "import numpy as np\nfrom lapsolver import solve_dense\nmatrix = [").unwrap();
+    write!(&mut writer, "from lapjv import lapjv\nmatrix = [").unwrap();
     for s in 0 .. width {
         write!(&mut writer, "[").unwrap();
         for d in 0 .. length {
@@ -291,8 +317,8 @@ fn generate_python2(filename: &str, width: usize, length: usize, cost: &[[u16; D
         }
         write!(&mut writer, "\n").unwrap();
     }
-    write!(&mut writer, "]\nm = Munkres()\nindexes = m.compute(matrix)\nf = open(\"output.txt\", \"w\")\n").unwrap();
-    write!(&mut writer, "for row, column in indexes:\n\tf.write (\"%d %d\\n\" % (row, column))\n").unwrap(); 
+    write!(&mut writer, "]\nrow, col, _ = lapjv(matrix)\nf = open(\"output.txt\", \"w\")\n").unwrap();
+    write!(&mut writer, "for r in row:\n\tf.write (\"%d\\n\" % (r))\n").unwrap(); 
     write!(&mut writer, "f.close()\n").unwrap(); 
 }
 

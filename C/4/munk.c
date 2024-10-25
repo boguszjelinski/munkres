@@ -259,7 +259,7 @@ FILE *myFile;
 
 initArray();
 
-myFile = fopen("/Users/m91127/Rust/munkres/input.txt", "r");
+myFile = fopen("input.txt", "r");
 if (myFile == NULL){
     printf("Error Reading File\n");
     return 0;

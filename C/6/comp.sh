@@ -1,0 +1,1 @@
+g++ munk.cpp -O3 -o ../../munkres6
