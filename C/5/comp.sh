@@ -1,1 +1,1 @@
-g++ -w lap.cpp -o lap1
+g++ -w lap.cpp -O3 -o ../../lap1

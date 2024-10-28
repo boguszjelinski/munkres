@@ -1,3 +1,4 @@
+import datetime
 import numpy as np
 from cvxopt.glpk import ilp
 from cvxopt import matrix
@@ -24,10 +25,15 @@ def solve (n, cost):
 with open("input.txt") as f:
     nn = int(f.readline())
     cost = [[int(x) for x in line.split()] for line in f]
+a = datetime.datetime.now()
 
 x = solve(nn, cost)
 
+b = datetime.datetime.now()
+c = b - a
+millis = int(c.total_seconds() * 1000)
 f = open("output.txt", "w")
+f.write ("%d\n" % (millis))
 for i in range(0,nn*nn): 
     f.write ("%d\n" % (x[i]))
 f.close()

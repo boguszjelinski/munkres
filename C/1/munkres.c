@@ -40,6 +40,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "float.h"
+#include <sys/time.h>
 
 void print_cost_matrix(double *cost, int width, int length) // {cost: pointer to cost matrix, width: row number of matrix, length: column number of matrix}
 {
@@ -63,9 +64,10 @@ void print_mask_matrix(int *mask, int width, int length) // {mask: pointer to ma
     }
 }
 
-void print_vector(int *v, int n) // {v: pointer to vector, n: length of vector}
+void print_vector(int *v, int n, int elapsed) // {v: pointer to vector, n: length of vector}
 {
     FILE *myFile = fopen("output.txt", "w");
+    fprintf(myFile, "%d\n", elapsed);
     for (int i=0; i<n; ++i)
         fprintf(myFile, "%d\n", *(v++));
     fclose(myFile);
@@ -415,8 +417,14 @@ int main()
 
     int matched_col[width];
     int matched_row[length];
+    struct timeval tvalBefore, tvalAfter;
+    gettimeofday (&tvalBefore, NULL);
+
     munkres(cost_matrix, width, length, matched_col, matched_row);
-    print_vector(matched_col, width);
+
+    gettimeofday (&tvalAfter, NULL);
+    int millis = (((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L +tvalAfter.tv_usec) - tvalBefore.tv_usec)/1000; 
+    print_vector(matched_col, width, millis);
     //printf("matched_row:");print_vector(matched_row, length);
     return 0;
 }

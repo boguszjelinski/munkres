@@ -4,6 +4,7 @@
 //
 #include <stdio.h>
 #include<stdlib.h>
+#include <sys/time.h>
 
 #define INF (0x7FFFFFFF)
 
@@ -256,6 +257,7 @@ main()
 {
 int y,x,i;
 FILE *myFile;
+struct timeval tvalBefore, tvalAfter;
 
 initArray();
 
@@ -275,9 +277,15 @@ for (int i = 0; i < size1; i++)
 }
 fclose(myFile);
 
+gettimeofday (&tvalBefore, NULL);
+
 hungarian();
 
+gettimeofday (&tvalAfter, NULL);
+int millis = (((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L +tvalAfter.tv_usec) - tvalBefore.tv_usec)/1000; 
+
 FILE *outFile = fopen("output.txt", "w");
+fprintf(outFile, "%d\n", millis);
 for (y=0;y<size1;++y)
   for (x=0;x<size2;++x)
     if (Result[y][x])

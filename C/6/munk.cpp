@@ -10,7 +10,7 @@
 #include <vector>
 #include <fstream>
 #include <iterator>
-
+#include <sys/time.h>
 using std::string;
 using std::vector;
 using namespace std;
@@ -33,7 +33,8 @@ static string print_munkres_result(
     const unsigned n_lhs_verts,
     const unsigned n_rhs_verts,
     std::function<double(unsigned l, unsigned r)> cost_func,
-    const vector<std::pair<unsigned, unsigned>>& matching) noexcept
+    const vector<std::pair<unsigned, unsigned>>& matching,
+    int elapsed) noexcept
 {
    static const char* ANSI_COLOUR_BLUE_BG = "\x1b[44m";
    static const char* ANSI_COLOUR_RESET   = "\x1b[0m";
@@ -50,7 +51,7 @@ static string print_munkres_result(
 
    ofstream outfile;
    outfile.open("output.txt");
-	
+	outfile << elapsed << "\n";
    //ss << std::setprecision(4);
    //ss << "cost = " << assignment_cost(cost_func, matching) << std::endl;
    for(auto r = 0u; r < n_lhs_verts; ++r) {
@@ -70,9 +71,15 @@ template<typename T>
 static void test_M(std::vector<T> M, unsigned rows, unsigned cols)
 {
    auto f        = [&](unsigned r, unsigned c) { return M[r * cols + c]; };
+   struct timeval tvalBefore, tvalAfter;
+   gettimeofday (&tvalBefore, NULL);
+
    auto matching = munkres_algorithm<T>(rows, cols, f);
-   std::cout << "Munkres (Hungarian) Algorithm:" << std::endl;
-   std::cout << print_munkres_result(rows, cols, f, matching) << std::endl;
+
+   gettimeofday (&tvalAfter, NULL);
+   int millis = (((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L +tvalAfter.tv_usec) - tvalBefore.tv_usec)/1000; 
+
+   print_munkres_result(rows, cols, f, matching, millis);
 }
 
 // ------------------------------------------------------------------------ main

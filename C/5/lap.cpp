@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
+#include <sys/time.h>
 using namespace std;
 
 /*This function is the jv shortest augmenting path algorithm to solve the assignment problem*/
@@ -274,6 +275,7 @@ cost lap(int dim, cost **assigncost, col *rowsol, row *colsol, cost *u, cost *v)
 int main() {
     int no_rows;
     int no_cols;
+    struct timeval tvalBefore, tvalAfter;
     ifstream infile;
     infile.open("input.txt");
     infile >> no_rows;
@@ -302,11 +304,16 @@ int main() {
         }
     }
     infile.close();
+    gettimeofday (&tvalBefore, NULL);
 
     cost totalCost = lap(dim, costMatrix, rowsol, colsol, u, v); 
 
+    gettimeofday (&tvalAfter, NULL);
+    int millis = (((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L +tvalAfter.tv_usec) - tvalBefore.tv_usec)/1000; 
+
     ofstream outfile;
     outfile.open("output.txt");
+    outfile << millis << "\n";
 	for (unsigned int x = 0; x < dim; x++)
 		outfile << rowsol[x] << "\n";
     outfile.close();

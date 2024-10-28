@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <iomanip>
+#include <sys/time.h>
 
 using namespace std;
 
@@ -42,12 +43,12 @@ int main(void)
  */
   	int no_rows;
     int no_cols;
-        
+    struct timeval tvalBefore, tvalAfter;
     ifstream infile;
     infile.open("input.txt");
     infile >> no_rows;
 	infile >> no_cols;
-    vector<vector<double>> costMatrix(no_rows, vector<double>(no_cols));
+    vector<vector<double> > costMatrix(no_rows, vector<double>(no_cols));
 
     read_data(infile, costMatrix, no_rows, no_cols);
     infile.close();
@@ -55,11 +56,15 @@ int main(void)
 
 	HungarianAlgorithm HungAlgo;
 	vector<int> assignment;
+    gettimeofday (&tvalBefore, NULL);
 
 	double cost = HungAlgo.Solve(costMatrix, assignment);
 
+    gettimeofday (&tvalAfter, NULL);
+    int millis = (((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L +tvalAfter.tv_usec) - tvalBefore.tv_usec)/1000; 
     ofstream outfile;
     outfile.open("output.txt");
+    outfile << millis << "\n";
 	for (unsigned int x = 0; x < costMatrix.size(); x++)
 		outfile << assignment[x] << "\n";
 	//std::cout << cost << std::endl;

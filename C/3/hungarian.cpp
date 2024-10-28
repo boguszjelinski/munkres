@@ -24,7 +24,7 @@
 #include <vector>
 #include <fstream>
 #include <iomanip>
-
+#include <sys/time.h>
 
 namespace Munkres {
 
@@ -463,6 +463,9 @@ hungarian(const Container<Container<T,Args...>>& original,
     
     // Work on a vector copy to preserve original matrix
     // Didn't passed by value cause needed to access both
+    struct timeval tvalBefore, tvalAfter;
+    gettimeofday (&tvalBefore, NULL);
+
     std::vector<std::vector<T>> matrix (original.size(), 
                                         std::vector<T>(original.begin()->size()));
     
@@ -534,8 +537,13 @@ hungarian(const Container<Container<T,Args...>>& original,
     //Printing part (optional)
     //std::cout << "Cost Matrix: \n" << original << std::endl 
     //          << "Optimal assignment: \n" << M;
+
+    gettimeofday (&tvalAfter, NULL);
+    int millis = (((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L +tvalAfter.tv_usec) - tvalBefore.tv_usec)/1000; 
+
     std::ofstream outfile;
     outfile.open("output.txt");
+    outfile << millis << "\n";
     outfile << M << std::endl;
     outfile.close();
     return output_solution(original, M);
@@ -551,7 +559,7 @@ int main() //example of usage
     
     int no_rows;
     int no_cols;
-        
+  
     ifstream infile;
     infile.open("input.txt");
     infile >> no_rows;
