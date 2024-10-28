@@ -45,7 +45,8 @@ $
 # Your project code can be in any directory.
 */
 const BIG_VALUE: u16 = 65255;
-const MAX_ITER: usize = 5;
+const MIN_VALUE: u16 = 30;
+const MAX_ITER: usize = 1;
 
 #[derive(PartialEq, Eq, Clone, Debug, EnumIter, IntoStaticStr)]
 enum Solvers {
@@ -89,39 +90,43 @@ fn main()  -> std::io::Result<()> {
         // ------------------ RUST faster ------------------
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
-        run_munkres2(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //let munk_cost = run_munkres2(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C ------------------------
         // https://github.com/xg590/munkres
         // fails e.g. with n=1000
+        // Segm fault e.g. with n=1000
         //run("./munkres1", Solvers::C, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C++ ------------------------
         // https://github.com/mcximing/hungarian-algorithm-cpp
+        // 1000x2000, 30..1800: plan is invalid
+        // 500x8000, 0..30: duplicates found
         run("./munkres2", Solvers::CPP, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C++ ------------------------
         // https://github.com/phoemur/hungarian_algorithm/blob/master/hungarian.cpp
         // SLOW
-        run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
         
         // ---------------- Python
         // https://software.clapper.org/munkres/
         // python3 -m pip install munkres
         // SLOW
-        generate_python("munk.py", supply_size, demand_size, &cost);
-        run("python3 munk.py", Solvers::PYTHON, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec); 
+        //generate_python("munk.py", supply_size, demand_size, &cost);
+        //run("python3 munk.py", Solvers::PYTHON, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec); 
 
         // ---------------- Python LAPJV
         // https://github.com/src-d/lapjv
         // python3 -m pip install lapjv
+        // 1000x2000: ValueError: "cost_matrix" must be a square 2D numpy array
         //generate_python2("munk2.py", supply_size, demand_size, &cost);
-        //run("python3 munk2.py", PYTHON2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run("python3 munk2.py", Solvers::PYTHON2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
         
         // ---------- C ----
         // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
-        // hangs when non-balanced
-        run("./munkres4", Solvers::C2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        // hangs when non-balanced, at least 1000x2000, 30..1800
+        //run("./munkres4", Solvers::C2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
         // !! no use to read as it hang when non-balanced
 
         // ---------------- C++ -----------------
@@ -131,7 +136,8 @@ fn main()  -> std::io::Result<()> {
      
         // https://github.com/aaron-michaux/munkres-algorithm.git
         // does not compile on Mac
-        //run("./munkres6", CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        // SLOW on Ubuntu
+        //run("./munkres6", Solvers::CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // Low Cost Method, just for comparison
         run_lcm(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
@@ -161,6 +167,7 @@ fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSI
     if exp_val != lcm_cost {
         println!("LCM is worse rust: {} lcm: {}", exp_val, lcm_cost);
     }
+    cost_vec[Solvers::LCM as usize].push(lcm_cost);
 }
 
 fn run_munkres(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
@@ -172,7 +179,7 @@ fn run_munkres(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_
     let munk_cost: u32 = sum_up_cost(&munk, &cost);
 
     // QA
-    let (minus_count, values) = rm_minusone(&munk);
+    let (_, values) = rm_minusone(&munk);
    /* if supply_size - demand_size != minus_count as usize {
         println!("Minus count is different than size diff: count: {}, demand: {}, supply: {}",
             minus_count, demand_size, supply_size);
@@ -186,7 +193,7 @@ fn run_munkres(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_
     return munk_cost;
 }
 
-fn run_munkres2(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
+fn run_munkres2(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
     let max_size: usize = cmp::max(d_size, s_size);
     let start = Instant::now();
     let (_, ret) = munkres2(&cost, max_size, max_size);
@@ -201,6 +208,7 @@ fn run_munkres2(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost
     cost_vec[Solvers::RUST2 as usize].push(munk2_cost);
     
     //println!("Munkres2 ({}): {:?}", munk2_cost, ret);
+    return munk2_cost;
 }
 
 fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE],
@@ -225,8 +233,11 @@ fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost
                     };
     time_vec[key.clone() as usize].push(elapsed);
     cost_vec[key as usize].push(cost);
-    if ret.len() != min_size || !no_duplicates(ret) {
-        println!("Plan is invalid");
+    if ret.len() != min_size && ret.len() != max_size {
+        println!("Plan is invalid, expected size: {}, returned number of rows: {}", min_size, ret.len());
+    }
+    if !no_duplicates(ret) {
+        println!("Plan is invalid, duplicated found");
     }
     if exp_val != cost {
         println!("{}: expected value {} != {}", cmd, exp_val, cost);
@@ -411,7 +422,7 @@ fn random_cost(cost: &mut [[u16; DSIZE]; SSIZE], s_size: usize, d_size: usize) {
     let mut rng = rand::thread_rng();
     for s in 0 .. s_size { // supply
         for d in 0 .. d_size { // demand
-            cost[s][d] = rng.gen_range(30..1800);
+            cost[s][d] = rng.gen_range(MIN_VALUE..1800);
         }
     }
 }
@@ -432,7 +443,8 @@ fn read_results_index(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u3
         }
         let index: i16 = line.unwrap().parse().unwrap();
         ret.push(index as i16);
-        if index != -1 {
+        if index != -1 && index < DSIZE as i16 // such index means a fake customer in order to get the square matrix
+            && cost[s][index as usize] < BIG_VALUE {
             cost_sum += cost[s][index as usize] as u32;
         }
         s += 1;
@@ -551,7 +563,7 @@ fn lcm(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (u32
                     lcm_min_val = cost[cab][order];
                     smin = cab;
                     dmin = order;
-                    if lcm_min_val == 0 { // you can't have a better solution
+                    if lcm_min_val == MIN_VALUE { // you can't have a better solution
                         found = true;
                         break;
                     }
