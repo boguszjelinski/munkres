@@ -46,6 +46,7 @@ $
 */
 const BIG_VALUE: u16 = 65255;
 const MIN_VALUE: u16 = 30;
+const MAX_VALUE: u16 = 1800;
 const MAX_ITER: usize = 1;
 
 #[derive(PartialEq, Eq, Clone, Debug, EnumIter, IntoStaticStr)]
@@ -69,7 +70,7 @@ const SSIZE: usize = 2001;
 
 fn main()  -> std::io::Result<()> {
     let mut cost: [[u16; DSIZE]; SSIZE] = [[0; DSIZE]; SSIZE];
-    let demand_size: usize = 2000;
+    let demand_size: usize = 1000;
     let supply_size: usize = 2000;
     let mut cost_vec: [Vec<u32>; 15] = [const { Vec::new() }; 15];
     let mut time_vec: [Vec<u128>; 15] = [const { Vec::new() }; 15];
@@ -90,7 +91,7 @@ fn main()  -> std::io::Result<()> {
         // ------------------ RUST faster ------------------
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
-        //let munk_cost = run_munkres2(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        let munk_cost = run_munkres2(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C ------------------------
         // https://github.com/xg590/munkres
@@ -102,19 +103,19 @@ fn main()  -> std::io::Result<()> {
         // https://github.com/mcximing/hungarian-algorithm-cpp
         // 1000x2000, 30..1800: plan is invalid
         // 500x8000, 0..30: duplicates found
-        run("./munkres2", Solvers::CPP, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run("./munkres2", Solvers::CPP, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C++ ------------------------
         // https://github.com/phoemur/hungarian_algorithm/blob/master/hungarian.cpp
         // SLOW
-        //run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
         
         // ---------------- Python
         // https://software.clapper.org/munkres/
         // python3 -m pip install munkres
         // SLOW
-        //generate_python("munk.py", supply_size, demand_size, &cost);
-        //run("python3 munk.py", Solvers::PYTHON, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec); 
+        generate_python("munk.py", supply_size, demand_size, &cost);
+        run("python3 munk.py", Solvers::PYTHON, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec); 
 
         // ---------------- Python LAPJV
         // https://github.com/src-d/lapjv
@@ -127,17 +128,18 @@ fn main()  -> std::io::Result<()> {
         // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
         // hangs when non-balanced, at least 1000x2000, 30..1800
         //run("./munkres4", Solvers::C2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
-        // !! no use to read as it hang when non-balanced
+        // !! no use to read as it hang when non-balance
 
         // ---------------- C++ -----------------
         // https://github.com/yongyanghz/LAPJV-algorithm-c
         // this implementation assumes quadratic cost matrix, balanced models
-        run("./lap1", Solvers::CPP3, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run("./lap1", Solvers::CPP3, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
      
         // https://github.com/aaron-michaux/munkres-algorithm.git
         // does not compile on Mac
         // SLOW on Ubuntu
-        //run("./munkres6", Solvers::CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        // 1000x2000, 30..1800: non-optimal value + slow
+        run("./munkres6", Solvers::CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // Low Cost Method, just for comparison
         run_lcm(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
@@ -422,7 +424,7 @@ fn random_cost(cost: &mut [[u16; DSIZE]; SSIZE], s_size: usize, d_size: usize) {
     let mut rng = rand::thread_rng();
     for s in 0 .. s_size { // supply
         for d in 0 .. d_size { // demand
-            cost[s][d] = rng.gen_range(MIN_VALUE..1800);
+            cost[s][d] = rng.gen_range(MIN_VALUE..MAX_VALUE);
         }
     }
 }
