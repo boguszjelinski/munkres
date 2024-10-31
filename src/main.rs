@@ -6,10 +6,14 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
 use std::time::Instant;
 use chrono::Utc;
+use ndarray::{Array, ArrayBase, OwnedRepr};
+use pathfinding::num_traits::float;
 use rand::Rng;
 use hungarian::minimize;
 use pathfinding::prelude::{kuhn_munkres_min, Matrix};
 use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
+use lapjv::lapjv;
+use ndarray::Array2;
 
 /*
 https://discuss.python.org/t/on-macos-14-pip-install-throws-error-externally-managed-environment/50352/3
@@ -62,6 +66,7 @@ enum Solvers {
     CPP3,
     PYTHON2,
     CPP4,
+    RUST3,
     LCM
 }
 
@@ -92,7 +97,11 @@ fn main()  -> std::io::Result<()> {
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
         // then 500*8000 needs 8000x8000
-        let munk_cost = run_munkres2(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        let munk_cost = run_munkres2(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+
+        // https://crates.io/crates/lapjv/0.2.1
+        // "matrix is not square"
+        run_lapjv(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C ------------------------
         // https://github.com/xg590/munkres
@@ -196,7 +205,8 @@ fn run_munkres(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_
     return munk_cost;
 }
 
-fn run_munkres2(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
+fn run_munkres2(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], 
+                cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
     let max_size: usize = cmp::max(d_size, s_size);
     let start = Instant::now();
     let (_, ret) = munkres2(&cost, max_size, max_size);
@@ -209,9 +219,42 @@ fn run_munkres2(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost
         }
     }
     cost_vec[Solvers::RUST2 as usize].push(munk2_cost);
+    if munk2_cost != exp_cost {
+        println!("Munkres2 cost is wrong, should be {}, is {}", munk2_cost, exp_cost);    
+    }
     
     //println!("Munkres2 ({}): {:?}", munk2_cost, ret);
     return munk2_cost;
+}
+
+fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], 
+            cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
+    let max_size: usize = cmp::max(d_size, s_size);
+    let mut vect: Vec<f32> = vec![];
+    for s in 0..max_size {
+        for d in 0..max_size {
+            vect.push(cost[s][d] as f32);
+        }
+    }
+    let m = Array2::from_shape_vec((max_size, max_size), vect).unwrap();
+    let start = Instant::now();
+
+    let ret = lapjv::<f32>(&m).unwrap();
+
+    time_vec[Solvers::RUST3 as usize].push(start.elapsed().as_millis());
+    
+    let mut munk3_cost = 0;
+    for (s, d) in ret.0.iter().enumerate() {
+        if cost[s][*d as usize] < BIG_VALUE {
+            munk3_cost += cost[s][*d as usize] as u32;
+        }
+    }
+    cost_vec[Solvers::RUST3 as usize].push(munk3_cost);
+    if munk3_cost != exp_cost {
+        println!("Munkres2 cost is wrong, should be {}, is {}", munk3_cost, exp_cost);    
+    }
+    //assert_eq!(result.0, vec![2, 0, 1]);
+    //assert_eq!(result.1, vec![1, 2, 0]);
 }
 
 fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE],
