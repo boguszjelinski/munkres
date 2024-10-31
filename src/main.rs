@@ -91,6 +91,7 @@ fn main()  -> std::io::Result<()> {
         // ------------------ RUST faster ------------------
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
+        // then 500*8000 needs 8000x8000
         let munk_cost = run_munkres2(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C ------------------------
@@ -107,7 +108,7 @@ fn main()  -> std::io::Result<()> {
 
         // ---------------- C++ ------------------------
         // https://github.com/phoemur/hungarian_algorithm/blob/master/hungarian.cpp
-        // SLOW
+        // SLOW, 500x8000: very slow
         run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
         
         // ---------------- Python
