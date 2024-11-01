@@ -11,7 +11,7 @@
 int size1=0;
 int size2=0;
 
-#define SIZE 2001
+#define SIZE 8001
 #define verbose (1)
 
 int Array[SIZE][SIZE];

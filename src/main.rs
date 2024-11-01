@@ -48,10 +48,7 @@ $
 # Note, you can chose any folder location and name that you want for the venv. ~/.venv is typical.
 # Your project code can be in any directory.
 */
-const BIG_VALUE: u16 = 65255;
-const MIN_VALUE: u16 = 30;
-const MAX_VALUE: u16 = 1800;
-const MAX_ITER: usize = 1;
+
 
 #[derive(PartialEq, Eq, Clone, Debug, EnumIter, IntoStaticStr)]
 enum Solvers {
@@ -70,13 +67,19 @@ enum Solvers {
     LCM
 }
 
-const DSIZE: usize = 2001;
-const SSIZE: usize = 2001;
+const BIG_VALUE: u16 = 65255;
+const MIN_VALUE: u16 = 30;
+const MAX_VALUE: u16 = 1800;
+const MAX_ITER: usize = 5;
+const DSIZE: usize = 8001;
+const SSIZE: usize = 8001;
+static mut cost: [[u16; DSIZE]; SSIZE] = [[0; DSIZE]; SSIZE];
 
 fn main()  -> std::io::Result<()> {
-    let mut cost: [[u16; DSIZE]; SSIZE] = [[0; DSIZE]; SSIZE];
-    let demand_size: usize = 1000;
-    let supply_size: usize = 2000;
+    unsafe {
+    let demand_size: usize = 500;
+    let supply_size: usize = 8000;
+    let max_size: usize = cmp::max(demand_size, supply_size);
     let mut cost_vec: [Vec<u32>; 15] = [const { Vec::new() }; 15];
     let mut time_vec: [Vec<u128>; 15] = [const { Vec::new() }; 15];
 
@@ -84,7 +87,7 @@ fn main()  -> std::io::Result<()> {
 
     for iter in 0 .. MAX_ITER {
         println!("Iter {} start: {:?}", iter, Utc::now());
-        random_cost(&mut cost, supply_size, demand_size);
+        unsafe { random_cost(&mut cost, supply_size, demand_size); }
         
         // ----------------- RUST ----------------------
         // https://crates.io/crates/hungarian
@@ -97,7 +100,7 @@ fn main()  -> std::io::Result<()> {
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
         // then 500*8000 needs 8000x8000
-        let munk_cost = run_munkres2(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //let munk_cost = run_munkres2(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // https://crates.io/crates/lapjv/0.2.1
         // "matrix is not square"
@@ -118,26 +121,26 @@ fn main()  -> std::io::Result<()> {
         // ---------------- C++ ------------------------
         // https://github.com/phoemur/hungarian_algorithm/blob/master/hungarian.cpp
         // SLOW, 500x8000: very slow
-        run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run("./munkres3", Solvers::CPP2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
         
         // ---------------- Python
         // https://software.clapper.org/munkres/
         // python3 -m pip install munkres
         // SLOW
-        generate_python("munk.py", supply_size, demand_size, &cost);
-        run("python3 munk.py", Solvers::PYTHON, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec); 
+        //generate_python("munk.py", supply_size, demand_size, &cost);
+        //run("python3 munk.py", Solvers::PYTHON, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec); 
 
         // ---------------- Python LAPJV
         // https://github.com/src-d/lapjv
         // python3 -m pip install lapjv
         // 1000x2000: ValueError: "cost_matrix" must be a square 2D numpy array
-        //generate_python2("munk2.py", supply_size, demand_size, &cost);
-        //run("python3 munk2.py", Solvers::PYTHON2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //generate_python2("munk2.py", max_size, max_size, &cost);
+        //run("python3 munk2.py", Solvers::PYTHON2, munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
         
         // ---------- C ----
         // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
         // hangs when non-balanced, at least 1000x2000, 30..1800
-        //run("./munkres4", Solvers::C2, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        run("./munkres4", Solvers::C2, munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
         // !! no use to read as it hang when non-balance
 
         // ---------------- C++ -----------------
@@ -149,7 +152,7 @@ fn main()  -> std::io::Result<()> {
         // does not compile on Mac
         // SLOW on Ubuntu
         // 1000x2000, 30..1800: non-optimal value + slow
-        run("./munkres6", Solvers::CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run("./munkres6", Solvers::CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // Low Cost Method, just for comparison
         run_lcm(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
@@ -166,11 +169,12 @@ fn main()  -> std::io::Result<()> {
     }
     Ok(())
 }
+}
 
-fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
+fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
     let min_size: usize = cmp::min(d_size, s_size);
     let start = Instant::now();
-    let (lcm_cost, ret) = lcm(&cost, s_size, d_size);
+    let (lcm_cost, ret) = lcm(&cost_arr, s_size, d_size);
     time_vec[Solvers::LCM as usize].push(start.elapsed().as_millis());
     if ret.len() != min_size || !no_duplicates(ret) {
         println!("LCM: plan is invalid");
@@ -182,13 +186,13 @@ fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSI
     cost_vec[Solvers::LCM as usize].push(lcm_cost);
 }
 
-fn run_munkres(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
+fn run_munkres(d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
     let min_size: usize = cmp::min(d_size, s_size);
     let start = Instant::now();
-    let munk = munkres(&cost, s_size, d_size);
+    let munk = munkres(&cost_arr, s_size, d_size);
     
     time_vec[Solvers::RUST as usize].push(start.elapsed().as_millis());
-    let munk_cost: u32 = sum_up_cost(&munk, &cost);
+    let munk_cost: u32 = sum_up_cost(&munk, &cost_arr);
 
     // QA
     let (_, values) = rm_minusone(&munk);
@@ -205,17 +209,17 @@ fn run_munkres(d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], cost_
     return munk_cost;
 }
 
-fn run_munkres2(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], 
+fn run_munkres2(exp_cost: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], 
                 cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
     let max_size: usize = cmp::max(d_size, s_size);
     let start = Instant::now();
-    let (_, ret) = munkres2(&cost, max_size, max_size);
+    let (_, ret) = munkres2(&cost_arr, max_size, max_size);
     time_vec[Solvers::RUST2 as usize].push(start.elapsed().as_millis());
     
     let mut munk2_cost = 0;
     for (s, d) in ret.iter().enumerate() {
-        if cost[s][*d as usize] < BIG_VALUE {
-            munk2_cost += cost[s][*d as usize] as u32;
+        if cost_arr[s][*d as usize] < BIG_VALUE {
+            munk2_cost += cost_arr[s][*d as usize] as u32;
         }
     }
     cost_vec[Solvers::RUST2 as usize].push(munk2_cost);
@@ -227,13 +231,13 @@ fn run_munkres2(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE
     return munk2_cost;
 }
 
-fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE], 
+fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], 
             cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
     let max_size: usize = cmp::max(d_size, s_size);
     let mut vect: Vec<f32> = vec![];
     for s in 0..max_size {
         for d in 0..max_size {
-            vect.push(cost[s][d] as f32);
+            vect.push(cost_arr[s][d] as f32);
         }
     }
     let m = Array2::from_shape_vec((max_size, max_size), vect).unwrap();
@@ -245,8 +249,8 @@ fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; 
     
     let mut munk3_cost = 0;
     for (s, d) in ret.0.iter().enumerate() {
-        if cost[s][*d as usize] < BIG_VALUE {
-            munk3_cost += cost[s][*d as usize] as u32;
+        if cost_arr[s][*d as usize] < BIG_VALUE {
+            munk3_cost += cost_arr[s][*d as usize] as u32;
         }
     }
     cost_vec[Solvers::RUST3 as usize].push(munk3_cost);
@@ -257,36 +261,36 @@ fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; 
     //assert_eq!(result.1, vec![1, 2, 0]);
 }
 
-fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost: &[[u16; DSIZE]; SSIZE],
+fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE],
        cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
     println!("{}...", cmd);
     let max_size: usize = cmp::max(d_size, s_size);
     let min_size: usize = cmp::min(d_size, s_size);
     if key == Solvers::GLPK {
-        write_input_balanced("input.txt", max_size, &cost);
+        write_input_balanced("input.txt", max_size, &cost_arr);
     } else {
-        write_input("input.txt", s_size, d_size, &cost);
+        write_input("input.txt", s_size, d_size, &cost_arr);
     }
     match remove_file("output.txt") { Ok(_) => {} Err(_) => {} };
     
     Command::new("sh").arg("-c").arg(cmd).output().expect("failed to execute process");
     
-    let (elapsed, cost, ret) =  match key {
-        Solvers::GLPK => read_results_binary("output.txt", max_size, &cost),
-        Solvers::CPP2 => read_square_matrix("output.txt", &cost),
-        Solvers::PYTHON => read_python_row_col("output.txt", &cost),
-                        _  => read_results_index("output.txt", &cost),
+    let (elapsed, sum, ret) =  match key {
+        Solvers::GLPK => read_results_binary("output.txt", max_size, &cost_arr),
+        Solvers::CPP2 => read_square_matrix("output.txt", &cost_arr),
+        Solvers::PYTHON => read_python_row_col("output.txt", &cost_arr),
+                        _  => read_results_index("output.txt", &cost_arr),
                     };
     time_vec[key.clone() as usize].push(elapsed);
-    cost_vec[key as usize].push(cost);
+    cost_vec[key as usize].push(sum);
     if ret.len() != min_size && ret.len() != max_size {
         println!("Plan is invalid, expected size: {}, returned number of rows: {}", min_size, ret.len());
     }
     if !no_duplicates(ret) {
         println!("Plan is invalid, duplicated found");
     }
-    if exp_val != cost {
-        println!("{}: expected value {} != {}", cmd, exp_val, cost);
+    if exp_val != sum {
+        println!("{}: expected value {} != {}", cmd, exp_val, sum);
     }
 }
 
@@ -303,13 +307,13 @@ fn  rm_minusone(vec: &Vec<i16>) -> (i16, Vec<i16>) {
     return (counter, ret);
 }
 
-fn generate_python(filename: &str, width: usize, length: usize, cost: &[[u16; DSIZE]; SSIZE]) {
+fn generate_python(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
     write!(&mut writer, "import datetime\nfrom munkres import Munkres\nmatrix = [").unwrap();
     for s in 0 .. width {
         write!(&mut writer, "[").unwrap();
         for d in 0 .. length {
-            write!(&mut writer, "{}", cost[s][d]).unwrap();
+            write!(&mut writer, "{}", cost_arr[s][d]).unwrap();
             if d < length -1 {
                 write!(&mut writer, ",").unwrap();
             }
@@ -327,13 +331,13 @@ fn generate_python(filename: &str, width: usize, length: usize, cost: &[[u16; DS
     write!(&mut writer, "f.close()\n").unwrap(); 
 }
 
-fn generate_python2(filename: &str, width: usize, length: usize, cost: &[[u16; DSIZE]; SSIZE]) {
+fn generate_python2(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
     write!(&mut writer, "import datetime\nfrom lapjv import lapjv\nmatrix = [").unwrap();
     for s in 0 .. width {
         write!(&mut writer, "[").unwrap();
         for d in 0 .. length {
-            write!(&mut writer, "{}", cost[s][d]).unwrap();
+            write!(&mut writer, "{}", cost_arr[s][d]).unwrap();
             if d < length -1 {
                 write!(&mut writer, ",").unwrap();
             }
@@ -351,18 +355,18 @@ fn generate_python2(filename: &str, width: usize, length: usize, cost: &[[u16; D
     write!(&mut writer, "f.close()\n").unwrap(); 
 }
 
-fn sum_up_cost(vect: &Vec<i16>, cost: &[[u16; DSIZE]; SSIZE]) -> u32 {
+fn sum_up_cost(vect: &Vec<i16>, cost_arr: &[[u16; DSIZE]; SSIZE]) -> u32 {
     let mut sum: u32 = 0;
     for (s, d) in vect.iter().enumerate() {
         if *d > -1 // some libraries return -1 for fake assignments
-            && cost[s][*d as usize] < BIG_VALUE { // don't sup up fake assignments
-            sum += cost[s][*d as usize] as u32;
+            && cost_arr[s][*d as usize] < BIG_VALUE { // don't sup up fake assignments
+            sum += cost_arr[s][*d as usize] as u32;
         }
     }
     return sum;
 }
 
-fn read_square_matrix(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
+fn read_square_matrix(filename: &str, cost_arr: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
     let mut ret: Vec<i16> = vec![];
     let mut sum: u32 = 0;
     let f = BufReader::new(File::open(filename).unwrap());
@@ -386,8 +390,8 @@ fn read_square_matrix(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u3
             if flag == 1 {
                 let idx = j -2; // two whitespaces to be skipped
                 ret.push(j as i16);
-                if cost[i-1][idx] < BIG_VALUE { // -1 as the first line contains elapsed time
-                    sum += cost[i-1][idx] as u32;
+                if cost_arr[i-1][idx] < BIG_VALUE { // -1 as the first line contains elapsed time
+                    sum += cost_arr[i-1][idx] as u32;
                 }
                 // we could break here from the inner loop
             }
@@ -396,7 +400,7 @@ fn read_square_matrix(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u3
     return (elapsed, sum, ret);
 }
 
-fn read_python_row_col(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
+fn read_python_row_col(filename: &str, cost_arr: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
     let mut ret: Vec<i16> = vec![];
     let mut sum: u32 = 0;
     let mut row: usize = 0;
@@ -417,8 +421,8 @@ fn read_python_row_col(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u
             } else {
                 col = number.trim().parse::<usize>().unwrap();
                 ret.push(col as i16);
-                if cost[row][col] < BIG_VALUE {
-                    sum += cost[row][col] as u32;
+                if cost_arr[row][col] < BIG_VALUE {
+                    sum += cost_arr[row][col] as u32;
                 }
             }
         }
@@ -426,7 +430,7 @@ fn read_python_row_col(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u
     return (elapsed, sum, ret);
 }
 
-fn read_results_binary(filename: &str, size: usize, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
+fn read_results_binary(filename: &str, size: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
     let file = File::open(filename).unwrap();
     let reader = BufReader::new(file);
     let mut s: usize = 0;
@@ -444,8 +448,8 @@ fn read_results_binary(filename: &str, size: usize, cost: &[[u16; DSIZE]; SSIZE]
         let flag: usize = line.unwrap().parse().unwrap();
         if flag == 1 {
             ret.push(d as i16);
-            if cost[s][d] < BIG_VALUE { // don't sup up fake assignments (non-balanced models)
-                cost_sum += cost[s][d] as u32;
+            if cost_arr[s][d] < BIG_VALUE { // don't sup up fake assignments (non-balanced models)
+                cost_sum += cost_arr[s][d] as u32;
             }
         }
         if d == size -1 {
@@ -456,24 +460,24 @@ fn read_results_binary(filename: &str, size: usize, cost: &[[u16; DSIZE]; SSIZE]
     return (elapsed, cost_sum, ret);
 }
 
-fn init_cost(cost: &mut [[u16; DSIZE]; SSIZE]) {
+fn init_cost(cost_arr: &mut [[u16; DSIZE]; SSIZE]) {
     for s in 0 .. SSIZE { // supply
         for d in 0 .. DSIZE { // demand
-            cost[s][d] = BIG_VALUE;
+            cost_arr[s][d] = BIG_VALUE;
         }
     }
 }
 
-fn random_cost(cost: &mut [[u16; DSIZE]; SSIZE], s_size: usize, d_size: usize) {
+fn random_cost(cost_arr: &mut [[u16; DSIZE]; SSIZE], s_size: usize, d_size: usize) {
     let mut rng = rand::thread_rng();
     for s in 0 .. s_size { // supply
         for d in 0 .. d_size { // demand
-            cost[s][d] = rng.gen_range(MIN_VALUE..MAX_VALUE);
+            cost_arr[s][d] = rng.gen_range(MIN_VALUE..MAX_VALUE);
         }
     }
 }
 
-fn read_results_index(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
+fn read_results_index(filename: &str, cost_arr: &[[u16; DSIZE]; SSIZE]) -> (u128, u32, Vec<i16>) {
     let file = File::open(filename).unwrap();
     let reader = BufReader::new(file);
     let mut s: usize = 0;
@@ -490,32 +494,32 @@ fn read_results_index(filename: &str, cost: &[[u16; DSIZE]; SSIZE]) -> (u128, u3
         let index: i16 = line.unwrap().parse().unwrap();
         ret.push(index as i16);
         if index != -1 && index < DSIZE as i16 // such index means a fake customer in order to get the square matrix
-            && cost[s][index as usize] < BIG_VALUE {
-            cost_sum += cost[s][index as usize] as u32;
+            && cost_arr[s][index as usize] < BIG_VALUE {
+            cost_sum += cost_arr[s][index as usize] as u32;
         }
         s += 1;
     }
     return (elapsed, cost_sum, ret);
 }
 
-fn write_input_balanced(filename: &str, size: usize, cost: &[[u16; DSIZE]; SSIZE]) {
+fn write_input_balanced(filename: &str, size: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
     write!(&mut writer, "{}\n", size).unwrap();
     for s in 0 .. size {
         for d in 0 .. size {
-            write!(&mut writer, "{} ", cost[s][d]).unwrap();
+            write!(&mut writer, "{} ", cost_arr[s][d]).unwrap();
         }
         write!(&mut writer, "\n").unwrap();
     }
 }
 
-fn write_input(filename: &str, width: usize, length: usize, cost: &[[u16; DSIZE]; SSIZE]) {
+fn write_input(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
     write!(&mut writer, "{} ", width).unwrap();
     write!(&mut writer, "{} ", length).unwrap();
     for s in 0 .. width {
         for d in 0 .. length {
-            write!(&mut writer, "{} ", cost[s][d]).unwrap();
+            write!(&mut writer, "{} ", cost_arr[s][d]).unwrap();
         }
     }
     writer.flush().unwrap();
@@ -536,13 +540,13 @@ fn write_input_cpp(filename: &str, width: usize, length: usize, cost: &[[u16; DS
 }
 */
 
-fn munkres(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> Vec<i16> {
+fn munkres(cost_arr: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> Vec<i16> {
     let mut ret: Vec<i16> = vec![];
     let mut matrix: Vec<i32> = vec![];
     
     for s in 0 .. cab_size { // supply
         for d in 0 .. order_size { // demand
-            matrix.push(cost[s][d] as i32);
+            matrix.push(cost_arr[s][d] as i32);
         }
     }
     let assignment = minimize(&matrix, cab_size, order_size);
@@ -557,13 +561,13 @@ fn munkres(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> 
     return ret;
 }
 
-fn munkres2(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (i32, Vec<usize>) {
+fn munkres2(cost_arr: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (i32, Vec<usize>) {
     let mut matrix: Vec<Vec<i32>> = vec![];
     
     for s in 0 .. cab_size { // supply
         let mut row: Vec<i32> = vec![];
         for d in 0 .. order_size { // demand
-            row.push(cost[s][d] as i32);
+            row.push(cost_arr[s][d] as i32);
         }
         matrix.push(row);
     }
@@ -588,7 +592,7 @@ where
     iter.into_iter().all(move |x| set.insert(x))
 }
 
-fn lcm(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (u32, Vec<usize>) {
+fn lcm(cost_arr: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (u32, Vec<usize>) {
     let mut cabs: [bool; SSIZE] = [false; SSIZE];
     let mut orders: [bool; DSIZE] = [false; DSIZE];
     let mut lcm_min_val;
@@ -605,8 +609,8 @@ fn lcm(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (u32
                 continue;
             }
             for order in 0..order_size {
-                if orders[order] == false && cost[cab][order] < lcm_min_val {
-                    lcm_min_val = cost[cab][order];
+                if orders[order] == false && cost_arr[cab][order] < lcm_min_val {
+                    lcm_min_val = cost_arr[cab][order];
                     smin = cab;
                     dmin = order;
                     if lcm_min_val == MIN_VALUE { // you can't have a better solution
@@ -625,7 +629,7 @@ fn lcm(cost: &[[u16; DSIZE]; SSIZE], cab_size: usize, order_size: usize) -> (u32
         }
         // binding cab to the customer order
         pairs.push(dmin);
-        sum_cost += cost[smin][dmin] as u32;
+        sum_cost += cost_arr[smin][dmin] as u32;
         // removing the "columns" and "rows" from a virtual matrix
         cabs[smin] = true;
         orders[dmin] = true;
