@@ -1,1 +1,3 @@
-# munkres
+# Quality and performance of different implementations of Kuhn-Munkres and Jonker-Volgenant algorithms
+I explored the performance and quality of various implementations of the Kuhn-Munkres and Jonker-Volgenant algorithms across different programming languages. My findings reveal significant variations in performance based on the cost matrix's characteristics, and I provide insights on which implementations to prefer for large-scale problems. 
+Checkout summary [here](kuhn-hungarian-perf.pdf)

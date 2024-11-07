@@ -68,22 +68,22 @@ enum Solvers {
 }
 
 const BIG_VALUE: u16 = 65255;
-const MIN_VALUE: u16 = 30;
-const MAX_VALUE: u16 = 1800;
+const MIN_VALUE: u16 = 0;
+const MAX_VALUE: u16 = 30;
 const MAX_ITER: usize = 5;
-const DSIZE: usize = 8001;
-const SSIZE: usize = 8001;
+const DSIZE: usize = 32001;
+const SSIZE: usize = 32001;
 static mut cost: [[u16; DSIZE]; SSIZE] = [[0; DSIZE]; SSIZE];
 
 fn main()  -> std::io::Result<()> {
     unsafe {
-    let demand_size: usize = 500;
-    let supply_size: usize = 8000;
+    let demand_size: usize = 10;
+    let supply_size: usize = 20;
     let max_size: usize = cmp::max(demand_size, supply_size);
     let mut cost_vec: [Vec<u32>; 15] = [const { Vec::new() }; 15];
     let mut time_vec: [Vec<u128>; 15] = [const { Vec::new() }; 15];
 
-    init_cost(&mut cost);
+    init_cost(&mut cost, max_size);
 
     for iter in 0 .. MAX_ITER {
         println!("Iter {} start: {:?}", iter, Utc::now());
@@ -100,11 +100,11 @@ fn main()  -> std::io::Result<()> {
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
         // then 500*8000 needs 8000x8000
-        //let munk_cost = run_munkres2(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //let munk_cost = run_munkres2(0, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // https://crates.io/crates/lapjv/0.2.1
         // "matrix is not square"
-        run_lapjv(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run_lapjv(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C ------------------------
         // https://github.com/xg590/munkres
@@ -140,13 +140,14 @@ fn main()  -> std::io::Result<()> {
         // ---------- C ----
         // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
         // hangs when non-balanced, at least 1000x2000, 30..1800
-        run("./munkres4", Solvers::C2, munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
-        // !! no use to read as it hang when non-balance
+        // very slow in x8000
+        //run("./munkres4", Solvers::C2, munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
+        
 
         // ---------------- C++ -----------------
         // https://github.com/yongyanghz/LAPJV-algorithm-c
         // this implementation assumes quadratic cost matrix, balanced models
-        //run("./lap1", Solvers::CPP3, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        run("./lap1", Solvers::CPP3, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
      
         // https://github.com/aaron-michaux/munkres-algorithm.git
         // does not compile on Mac
@@ -460,7 +461,7 @@ fn read_results_binary(filename: &str, size: usize, cost_arr: &[[u16; DSIZE]; SS
     return (elapsed, cost_sum, ret);
 }
 
-fn init_cost(cost_arr: &mut [[u16; DSIZE]; SSIZE]) {
+fn init_cost(cost_arr: &mut [[u16; DSIZE]; SSIZE], size: usize) {
     for s in 0 .. SSIZE { // supply
         for d in 0 .. DSIZE { // demand
             cost_arr[s][d] = BIG_VALUE;
@@ -472,7 +473,12 @@ fn random_cost(cost_arr: &mut [[u16; DSIZE]; SSIZE], s_size: usize, d_size: usiz
     let mut rng = rand::thread_rng();
     for s in 0 .. s_size { // supply
         for d in 0 .. d_size { // demand
-            cost_arr[s][d] = rng.gen_range(MIN_VALUE..MAX_VALUE);
+            cost_arr[s][d] = rng.gen_range(MIN_VALUE..MAX_VALUE); /*rng.gen_range(0..2); // sparsity 50%
+            if cost_arr[s][d] == 1 {
+                cost_arr[s][d] = rng.gen_range(1..MAX_VALUE);
+            }
+            */
+            print!("{} ", cost_arr[s][d]);
         }
     }
 }
