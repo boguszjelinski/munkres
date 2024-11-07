@@ -400,7 +400,7 @@ int main()
                           14, 17,10, 19};
     */
     FILE *myFile;
-    myFile = fopen("/Users/m91127/Rust/munkres/input.txt", "r");
+    myFile = fopen("/home/m91127/munkres/input.txt", "r");
     if (myFile == NULL){
         printf("Error Reading File\n");
         return 0;

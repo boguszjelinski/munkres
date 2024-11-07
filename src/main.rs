@@ -62,6 +62,9 @@ enum Solvers {
     C2,
     CPP3,
     PYTHON2,
+    PYTHON3,
+    PYTHON4,
+    PYTHON5,
     CPP4,
     RUST3,
     LCM
@@ -77,11 +80,11 @@ static mut cost: [[u16; DSIZE]; SSIZE] = [[0; DSIZE]; SSIZE];
 
 fn main()  -> std::io::Result<()> {
     unsafe {
-    let demand_size: usize = 10;
-    let supply_size: usize = 20;
+    let demand_size: usize = 2000;
+    let supply_size: usize = 2000;
     let max_size: usize = cmp::max(demand_size, supply_size);
-    let mut cost_vec: [Vec<u32>; 15] = [const { Vec::new() }; 15];
-    let mut time_vec: [Vec<u128>; 15] = [const { Vec::new() }; 15];
+    let mut cost_vec: [Vec<u32>; 20] = [const { Vec::new() }; 20];
+    let mut time_vec: [Vec<u128>; 20] = [const { Vec::new() }; 20];
 
     init_cost(&mut cost, max_size);
 
@@ -91,7 +94,7 @@ fn main()  -> std::io::Result<()> {
         
         // ----------------- RUST ----------------------
         // https://crates.io/crates/hungarian
-        let munk_cost = run_munkres(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //let munk_cost = run_munkres(demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // --------------- GLPK ------------------
         //run("python3 glpk.py", Solvers::GLPK, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
@@ -100,11 +103,11 @@ fn main()  -> std::io::Result<()> {
         // https://crates.io/crates/pathfinding/4.3.1
         // !! "number of rows must not be larger than number of columns"
         // then 500*8000 needs 8000x8000
-        //let munk_cost = run_munkres2(0, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        let munk_cost = run_munkres2(0, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
 
         // https://crates.io/crates/lapjv/0.2.1
         // "matrix is not square"
-        //run_lapjv(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run_lapjv(munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
 
         // ---------------- C ------------------------
         // https://github.com/xg590/munkres
@@ -133,16 +136,32 @@ fn main()  -> std::io::Result<()> {
         // ---------------- Python LAPJV
         // https://github.com/src-d/lapjv
         // python3 -m pip install lapjv
-        // 1000x2000: ValueError: "cost_matrix" must be a square 2D numpy array
+        // 1000x2000: ValueError: "cost_matrix" must be a square 2D numpy array, 
+        // x8000: "Killed"
         //generate_python2("munk2.py", max_size, max_size, &cost);
         //run("python3 munk2.py", Solvers::PYTHON2, munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
         
+        // https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linear_sum_assignment.html
+        generate_python3("munk3.py", supply_size, demand_size, &cost);
+        run("python3 munk3.py", Solvers::PYTHON3, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        
+        // https://github.com/cheind/py-lapsolver
+        // even the GitHub readme "usage" example fails
+        //generate_python4("munk4.py", supply_size, demand_size, &cost);
+        //run("python3 munk4.py", Solvers::PYTHON4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+
+        // https://github.com/jdmoorman/laptools
+        generate_python5("munk5.py", supply_size, demand_size, &cost);
+        run("python3 munk5.py", Solvers::PYTHON5, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        
+
         // ---------- C ----
         // https://ranger.uta.edu/~weems/NOTES5311/hungarian.c
         // hangs when non-balanced, at least 1000x2000, 30..1800
         // very slow in x8000
+        // ..18000 (denser): Segm fault
         //run("./munkres4", Solvers::C2, munk_cost, max_size, max_size, &cost, &mut cost_vec, &mut time_vec);
-        
+        // !! no use to read as it hang when non-balance
 
         // ---------------- C++ -----------------
         // https://github.com/yongyanghz/LAPJV-algorithm-c
@@ -156,7 +175,7 @@ fn main()  -> std::io::Result<()> {
         //run("./munkres6", Solvers::CPP4, munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
 
         // Low Cost Method, just for comparison
-        run_lcm(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
+        //run_lcm(munk_cost, demand_size, supply_size, &cost, &mut cost_vec, &mut time_vec);
     }
     
     for solv in Solvers::iter() {
@@ -172,7 +191,7 @@ fn main()  -> std::io::Result<()> {
 }
 }
 
-fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
+fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 20], time_vec: &mut [Vec<u128>; 20]) {
     let min_size: usize = cmp::min(d_size, s_size);
     let start = Instant::now();
     let (lcm_cost, ret) = lcm(&cost_arr, s_size, d_size);
@@ -187,7 +206,7 @@ fn run_lcm(exp_val: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE];
     cost_vec[Solvers::LCM as usize].push(lcm_cost);
 }
 
-fn run_munkres(d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
+fn run_munkres(d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], cost_vec: &mut [Vec<u32>; 20], time_vec: &mut [Vec<u128>; 20]) -> u32 {
     let min_size: usize = cmp::min(d_size, s_size);
     let start = Instant::now();
     let munk = munkres(&cost_arr, s_size, d_size);
@@ -211,7 +230,7 @@ fn run_munkres(d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], c
 }
 
 fn run_munkres2(exp_cost: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], 
-                cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) -> u32 {
+                cost_vec: &mut [Vec<u32>; 20], time_vec: &mut [Vec<u128>; 20]) -> u32 {
     let max_size: usize = cmp::max(d_size, s_size);
     let start = Instant::now();
     let (_, ret) = munkres2(&cost_arr, max_size, max_size);
@@ -233,7 +252,7 @@ fn run_munkres2(exp_cost: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; D
 }
 
 fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE], 
-            cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
+            cost_vec: &mut [Vec<u32>; 20], time_vec: &mut [Vec<u128>; 20]) {
     let max_size: usize = cmp::max(d_size, s_size);
     let mut vect: Vec<f32> = vec![];
     for s in 0..max_size {
@@ -263,7 +282,7 @@ fn run_lapjv(exp_cost: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZ
 }
 
 fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost_arr: &[[u16; DSIZE]; SSIZE],
-       cost_vec: &mut [Vec<u32>; 15], time_vec: &mut [Vec<u128>; 15]) {
+       cost_vec: &mut [Vec<u32>; 20], time_vec: &mut [Vec<u128>; 20]) {
     println!("{}...", cmd);
     let max_size: usize = cmp::max(d_size, s_size);
     let min_size: usize = cmp::min(d_size, s_size);
@@ -284,6 +303,7 @@ fn run(cmd: &str, key: Solvers, exp_val: u32, d_size: usize, s_size: usize, cost
                     };
     time_vec[key.clone() as usize].push(elapsed);
     cost_vec[key as usize].push(sum);
+    //println!("Returned ({}): {:?}", sum, ret);
     if ret.len() != min_size && ret.len() != max_size {
         println!("Plan is invalid, expected size: {}, returned number of rows: {}", min_size, ret.len());
     }
@@ -310,22 +330,9 @@ fn  rm_minusone(vec: &Vec<i16>) -> (i16, Vec<i16>) {
 
 fn generate_python(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
-    write!(&mut writer, "import datetime\nfrom munkres import Munkres\nmatrix = [").unwrap();
-    for s in 0 .. width {
-        write!(&mut writer, "[").unwrap();
-        for d in 0 .. length {
-            write!(&mut writer, "{}", cost_arr[s][d]).unwrap();
-            if d < length -1 {
-                write!(&mut writer, ",").unwrap();
-            }
-        }
-        write!(&mut writer, "]").unwrap();
-        if s < width - 1 {
-            write!(&mut writer, ",").unwrap();
-        }
-        write!(&mut writer, "\n").unwrap();
-    }
-    write!(&mut writer, "]\na = datetime.datetime.now()\nm = Munkres()\nindexes = m.compute(matrix)\n").unwrap();
+    write!(&mut writer, "from munkres import Munkres\n").unwrap();
+    write_matrix(&mut writer, width, length, cost_arr);
+    write!(&mut writer, "m = Munkres()\nindexes = m.compute(matrix)\n").unwrap();
     write!(&mut writer, "b = datetime.datetime.now()\nc = b - a\nmillis = int(c.total_seconds() * 1000)\n").unwrap();
     write!(&mut writer, "f = open(\"output.txt\", \"w\")\nf.write (\"%d\\n\" % (millis))\n").unwrap();
     write!(&mut writer, "for row, column in indexes:\n\tf.write (\"%d %d\\n\" % (row, column))\n").unwrap(); 
@@ -334,26 +341,61 @@ fn generate_python(filename: &str, width: usize, length: usize, cost_arr: &[[u16
 
 fn generate_python2(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
     let mut writer = File::create(filename).expect("creation failed");
-    write!(&mut writer, "import datetime\nfrom lapjv import lapjv\nmatrix = [").unwrap();
+    write!(&mut writer, "from lapjv import lapjv\n").unwrap();
+    write_matrix(&mut writer, width, length, cost_arr);
+    write!(&mut writer, "row, col, _ = lapjv(matrix)\n").unwrap();
+    write_output(&mut writer);
+}
+
+fn generate_python3(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
+    let mut writer = File::create(filename).expect("creation failed");
+    write!(&mut writer, "from scipy.optimize import linear_sum_assignment\n").unwrap();
+    write_matrix(&mut writer, width, length, cost_arr);
+    write!(&mut writer, "_, row = linear_sum_assignment(matrix)\n").unwrap();
+    write_output(&mut writer);
+}
+
+fn generate_python4(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
+    let mut writer = File::create(filename).expect("creation failed");
+    write!(&mut writer, "from lapsolver import solve_dense\n").unwrap();
+    write_matrix(&mut writer, width, length, cost_arr);
+    write!(&mut writer, "row, _ = solve_dense(matrix)\n").unwrap();
+    write_output(&mut writer);
+}
+
+fn generate_python5(filename: &str, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
+    let mut writer = File::create(filename).expect("creation failed");
+    write!(&mut writer, "import laptools\nfrom laptools import lap\n").unwrap();
+    write_matrix(&mut writer, width, length, cost_arr);
+    write!(&mut writer, "_, row = lap.solve(matrix)\n").unwrap();
+    write_output(&mut writer);
+}
+
+
+fn write_output(writer: &mut File) {
+    write!(writer, "b = datetime.datetime.now()\nc = b - a\nmillis = int(c.total_seconds() * 1000)\n").unwrap();
+    write!(writer, "f = open(\"output.txt\", \"w\")\nf.write (\"%d\\n\" % (millis))\n").unwrap();
+    write!(writer, "for r in row:\n\tf.write (\"%d\\n\" % (r))\n").unwrap(); 
+    write!(writer, "f.close()\n").unwrap();
+}
+
+fn write_matrix(writer: &mut File, width: usize, length: usize, cost_arr: &[[u16; DSIZE]; SSIZE]) {
+    write!(writer, "import datetime\nmatrix = [").unwrap();
     for s in 0 .. width {
-        write!(&mut writer, "[").unwrap();
+        write!(writer, "[").unwrap();
         for d in 0 .. length {
-            write!(&mut writer, "{}", cost_arr[s][d]).unwrap();
+            write!(writer, "{}", cost_arr[s][d]).unwrap();
             if d < length -1 {
-                write!(&mut writer, ",").unwrap();
+                write!(writer, ",").unwrap();
             }
         }
-        write!(&mut writer, "]").unwrap();
+        write!(writer, "]").unwrap();
         if s < width - 1 {
-            write!(&mut writer, ",").unwrap();
+            write!(writer, ",").unwrap();
         }
-        write!(&mut writer, "\n").unwrap();
+        write!(writer, "\n").unwrap();
     }
-    write!(&mut writer, "]\na = datetime.datetime.now()\nrow, col, _ = lapjv(matrix)\n").unwrap();
-    write!(&mut writer, "b = datetime.datetime.now()\nc = b - a\nmillis = int(c.total_seconds() * 1000)\n").unwrap();
-    write!(&mut writer, "f = open(\"output.txt\", \"w\")\nf.write (\"%d\\n\" % (millis))\n").unwrap();
-    write!(&mut writer, "for r in row:\n\tf.write (\"%d\\n\" % (r))\n").unwrap(); 
-    write!(&mut writer, "f.close()\n").unwrap(); 
+    write!(writer, "]\na = datetime.datetime.now()\n");
 }
 
 fn sum_up_cost(vect: &Vec<i16>, cost_arr: &[[u16; DSIZE]; SSIZE]) -> u32 {
